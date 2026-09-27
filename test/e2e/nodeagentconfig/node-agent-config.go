@@ -49,7 +49,17 @@ type NodeAgentConfigTestCase struct {
 }
 
 var LoadAffinities func() = TestFunc(&NodeAgentConfigTestCase{
-	nodeAgentConfigs: velerotypes.NodeAgentConfigs{
+	nodeAgentConfigMapName: "node-agent-config",
+})
+
+func (n *NodeAgentConfigTestCase) Init() error {
+	// generate random number as UUIDgen and set one default timeout duration
+	n.TestCase.Init()
+
+	// Built here rather than in the package-level variable above: the StorageClass
+	// names are flags, and package-level variables are initialized before the
+	// flags are parsed, so the configured names would not reach this test.
+	n.nodeAgentConfigs = velerotypes.NodeAgentConfigs{
 		LoadAffinity: []*kube.LoadAffinity{
 			{
 				NodeSelector: metav1.LabelSelector{
@@ -85,13 +95,7 @@ var LoadAffinities func() = TestFunc(&NodeAgentConfigTestCase{
 		PodAnnotations: map[string]string{
 			"test-data-mover-annotation": "true",
 		},
-	},
-	nodeAgentConfigMapName: "node-agent-config",
-})
-
-func (n *NodeAgentConfigTestCase) Init() error {
-	// generate random number as UUIDgen and set one default timeout duration
-	n.TestCase.Init()
+	}
 
 	// generate variable names based on CaseBaseName + UUIDgen
 	n.CaseBaseName = "node-agent-config-" + n.UUIDgen
