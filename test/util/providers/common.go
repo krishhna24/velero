@@ -29,6 +29,7 @@ import (
 
 	"github.com/vmware-tanzu/velero/internal/volume"
 	velerotest "github.com/vmware-tanzu/velero/test"
+	csi "github.com/vmware-tanzu/velero/test/util/csi"
 	velero "github.com/vmware-tanzu/velero/test/util/velero"
 )
 
@@ -142,6 +143,13 @@ func CheckSnapshotsInProvider(
 		fmt.Printf("Skip snapshot check for vSphere environment that doesn't have Velero vSphere plugin.")
 		return nil
 	}
+	if veleroCfg.CloudProvider == velerotest.Kind {
+		if err := checkSnapshotsOnKind(veleroCfg, backupName, snapshotCheckPoint); err != nil {
+			return errors.Wrapf(err, "|| UNEXPECTED || - Snapshots are not as expected after backup %s", backupName)
+		}
+		fmt.Printf("|| EXPECTED || - Snapshots of backup %s are as expected on %s\n", backupName, veleroCfg.CloudProvider)
+		return nil
+	}
 	if veleroCfg.CloudCredentialsFile == "" {
 		return errors.New(fmt.Sprintf("|| ERROR || - Please provide credential file of cloud %s \n", veleroCfg.CloudProvider))
 	}
@@ -172,6 +180,43 @@ func CheckSnapshotsInProvider(
 	}
 
 	fmt.Printf("|| EXPECTED || - Snapshots of backup %s exist in provider %s\n", backupName, veleroCfg.CloudProvider)
+	return nil
+}
+
+// checkSnapshotsOnKind verifies a backup's CSI snapshots on a kind cluster,
+// which has no cloud snapshot API to ask.
+//
+// While a backup is being created its VolumeSnapshotContents exist only
+// briefly, so they cannot be counted afterwards the way the cloud providers
+// count snapshots. What Velero recorded in the backup's volume info can be
+// counted instead: it lists one ready CSI snapshot per volume. That is a
+// weaker statement than the cloud checks make, since it says the snapshots
+// were taken and reported ready rather than that they still exist in the
+// storage provider.
+//
+// A backup expected to have no snapshots left, after its deletion, is checked
+// the other way round: nothing for it may remain in the cluster.
+func checkSnapshotsOnKind(
+	veleroCfg velerotest.VeleroConfig,
+	backupName string,
+	snapshotCheckPoint velerotest.SnapshotCheckPoint,
+) error {
+	if snapshotCheckPoint.ExpectCount == 0 {
+		index := map[string]string{"backupNameLabel": backupName}
+		if snapshotCheckPoint.NamespaceBackedUp != "" {
+			index["namespace"] = snapshotCheckPoint.NamespaceBackedUp
+		}
+		_, err := csi.CheckVolumeSnapshotCR(*veleroCfg.DefaultClient, index, 0)
+		return err
+	}
+
+	if len(snapshotCheckPoint.SnapshotIDList) != snapshotCheckPoint.ExpectCount {
+		return errors.Errorf(
+			"backup recorded %d ready CSI snapshots, expected %d",
+			len(snapshotCheckPoint.SnapshotIDList),
+			snapshotCheckPoint.ExpectCount,
+		)
+	}
 	return nil
 }
 
