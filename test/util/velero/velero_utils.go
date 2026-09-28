@@ -1514,19 +1514,46 @@ func InstallStorageClasses(provider string) error {
 	ctx, ctxCancel := context.WithTimeout(context.Background(), time.Minute*5)
 	defer ctxCancel()
 
-	storageClassFilePath := fmt.Sprintf("../testdata/storage-class/%s.yaml", provider)
-
-	content, err := os.ReadFile(storageClassFilePath)
-	if err != nil {
-		return errors.Wrapf(err, "failed to get %s when install storage class", storageClassFilePath)
+	storageClasses := []struct {
+		name     string
+		provided bool
+	}{
+		{StorageClassName, StorageClassNameProvided},
+		{StorageClassName2, StorageClassName2Provided},
 	}
 
-	// The name in the file is ignored: both StorageClasses are created from the
-	// same definition, renamed to the configured names, so that overriding them
-	// changes what is created as well as what the tests look for.
-	for _, name := range []string{StorageClassName, StorageClassName2} {
-		if err := installStorageClassAs(ctx, content, name); err != nil {
-			return errors.Wrapf(err, "failed to install storage class %s", name)
+	// A provided StorageClass belongs to whoever set it up, so only check that
+	// it is there. An empty second name means the suite runs without one, and
+	// the cases that need it skip.
+	var content []byte
+	for _, sc := range storageClasses {
+		if sc.name == "" {
+			continue
+		}
+		if sc.provided {
+			exists, err := StorageClassExists(ctx, *VeleroCfg.ClientToInstallVelero, sc.name)
+			if err != nil {
+				return err
+			}
+			if !exists {
+				return errors.Errorf("storage class %s was configured but does not exist in the cluster; create it first or drop the flag to let the tests create their own", sc.name)
+			}
+			continue
+		}
+
+		if content == nil {
+			storageClassFilePath := fmt.Sprintf("../testdata/storage-class/%s.yaml", provider)
+			var err error
+			if content, err = os.ReadFile(storageClassFilePath); err != nil {
+				return errors.Wrapf(err, "failed to get %s when install storage class", storageClassFilePath)
+			}
+		}
+		// The name in the file is ignored: the StorageClasses are created from
+		// the same definition, renamed to the configured names, so that
+		// overriding them changes what is created as well as what the tests
+		// look for.
+		if err := installStorageClassAs(ctx, content, sc.name); err != nil {
+			return errors.Wrapf(err, "failed to install storage class %s", sc.name)
 		}
 	}
 	return nil

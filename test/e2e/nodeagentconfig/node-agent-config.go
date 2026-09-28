@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/cockroachdb/errors"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -55,6 +56,10 @@ var LoadAffinities func() = TestFunc(&NodeAgentConfigTestCase{
 func (n *NodeAgentConfigTestCase) Init() error {
 	// generate random number as UUIDgen and set one default timeout duration
 	n.TestCase.Init()
+
+	if test.StorageClassName2 == "" {
+		Skip("this case needs a second StorageClass; set --storage-class-2 to run it")
+	}
 
 	// Built here rather than in the package-level variable above: the StorageClass
 	// names are flags, and package-level variables are initialized before the

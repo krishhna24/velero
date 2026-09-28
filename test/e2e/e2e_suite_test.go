@@ -378,28 +378,33 @@ func init() {
 		"",
 		"comma-separated list of key=value annotations to add to Velero service account",
 	)
-	flag.StringVar(
-		&test.StorageClassName,
+	envOverride("E2E_STORAGE_CLASS", &test.StorageClassName, &test.StorageClassNameProvided)
+	envOverride("E2E_STORAGE_CLASS_2", &test.StorageClassName2, &test.StorageClassName2Provided)
+	flag.Func(
 		"storage-class",
-		envOrDefault("E2E_STORAGE_CLASS", test.StorageClassName),
-		"name of the StorageClass the tests provision volumes with. Optional.",
+		"name of an existing StorageClass the tests provision volumes with. The suite neither creates nor deletes it. Defaults to "+test.StorageClassName+", which the suite creates itself.",
+		func(value string) error {
+			test.StorageClassName, test.StorageClassNameProvided = value, true
+			return nil
+		},
 	)
-	flag.StringVar(
-		&test.StorageClassName2,
+	flag.Func(
 		"storage-class-2",
-		envOrDefault("E2E_STORAGE_CLASS_2", test.StorageClassName2),
-		"name of the second StorageClass, used by the StorageClass mapping test cases. Optional.",
+		"name of an existing second StorageClass, used by the StorageClass mapping cases. Empty runs without one and those cases are skipped. Defaults to "+test.StorageClassName2+", which the suite creates itself.",
+		func(value string) error {
+			test.StorageClassName2, test.StorageClassName2Provided = value, true
+			return nil
+		},
 	)
 }
 
-// envOrDefault returns the value of the environment variable key, or fallback
-// when it is unset or empty. It lets a StorageClass name be supplied without a
-// flag when the suite is launched from an IDE.
-func envOrDefault(key, fallback string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
+// envOverride applies an environment variable to a StorageClass name, recording
+// that the name was provided. It lets the names be set without flags when the
+// suite is launched from an IDE.
+func envOverride(key string, name *string, provided *bool) {
+	if value, ok := os.LookupEnv(key); ok {
+		*name, *provided = value, true
 	}
-	return fallback
 }
 
 // Add label [SkipVanillaZfs]:
@@ -850,22 +855,15 @@ var _ = AfterSuite(func() {
 	defer ctxCancel()
 
 	By("Delete StorageClasses created by E2E")
-	Expect(
-		k8s.DeleteStorageClass(
-			ctx,
-			*test.VeleroCfg.ClientToInstallVelero,
-			test.StorageClassName,
-		),
-	).To(Succeed())
-
-	By("Delete PriorityClasses created by E2E")
-	Expect(
-		k8s.DeleteStorageClass(
-			ctx,
-			*test.VeleroCfg.ClientToInstallVelero,
-			test.StorageClassName2,
-		),
-	).To(Succeed())
+	for _, name := range test.StorageClassesOwnedByE2E() {
+		Expect(
+			k8s.DeleteStorageClass(
+				ctx,
+				*test.VeleroCfg.ClientToInstallVelero,
+				name,
+			),
+		).To(Succeed())
+	}
 
 	if strings.EqualFold(test.VeleroCfg.Features, test.FeatureCSI) &&
 		test.VeleroCfg.UseVolumeSnapshots {
