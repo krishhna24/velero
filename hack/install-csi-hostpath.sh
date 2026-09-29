@@ -62,11 +62,13 @@ if [ "${ENABLE_VOLUME_GROUP_SNAPSHOT}" = "true" ]; then
     groupsnapshot.storage.k8s.io_volumegroupsnapshots
   )
 fi
+# The file names are <group>_<plural>; the object names are <plural>.<group>.
+established=()
 for crd in "${crds[@]}"; do
   $KUBECTL apply -f "${snapshotter_raw}/client/config/crd/${crd}.yaml"
+  established+=("crd/${crd#*_}.${crd%%_*}")
 done
-$KUBECTL wait --for=condition=established --timeout=60s \
-  crd/volumesnapshots.snapshot.storage.k8s.io
+$KUBECTL wait --for=condition=established --timeout=60s "${established[@]}"
 
 echo "==> Installing the snapshot controller"
 $KUBECTL apply -f "${snapshotter_raw}/deploy/kubernetes/snapshot-controller/rbac-snapshot-controller.yaml"
