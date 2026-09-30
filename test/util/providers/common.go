@@ -188,11 +188,12 @@ func CheckSnapshotsInProvider(
 //
 // While a backup is being created its VolumeSnapshotContents exist only
 // briefly, so they cannot be counted afterwards the way the cloud providers
-// count snapshots. What Velero recorded in the backup's volume info can be
-// counted instead: it lists one ready CSI snapshot per volume. That is a
-// weaker statement than the cloud checks make, since it says the snapshots
-// were taken and reported ready rather than that they still exist in the
-// storage provider.
+// count snapshots. The count is settled before this runs in any case:
+// BuildSnapshotCheckPointFromVolumeInfo returns an error when a volume is not
+// ready to use, and again when the number of snapshots does not match the
+// number expected. What it does not look at is the handle it recorded, so a
+// volume reported ready with an empty snapshot handle passes today. That is
+// what is checked here.
 //
 // A backup expected to have no snapshots left, after its deletion, is checked
 // the other way round: nothing for it may remain in the cluster.
@@ -210,12 +211,14 @@ func checkSnapshotsOnKind(
 		return err
 	}
 
-	if len(snapshotCheckPoint.SnapshotIDList) != snapshotCheckPoint.ExpectCount {
-		return errors.Errorf(
-			"backup recorded %d ready CSI snapshots, expected %d",
-			len(snapshotCheckPoint.SnapshotIDList),
-			snapshotCheckPoint.ExpectCount,
-		)
+	for i, handle := range snapshotCheckPoint.SnapshotIDList {
+		if handle == "" {
+			return errors.Errorf(
+				"CSI snapshot %d of %d was reported ready with an empty snapshot handle",
+				i+1,
+				len(snapshotCheckPoint.SnapshotIDList),
+			)
+		}
 	}
 	return nil
 }
