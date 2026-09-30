@@ -90,9 +90,21 @@ echo "==> Installing csi-driver-host-path ${HOSTPATH_VERSION} (${HOSTPATH_DEPLOY
 $KUBECTL apply -f "${hostpath_raw}/deploy/${HOSTPATH_DEPLOY_DIR}/hostpath/csi-hostpath-driverinfo.yaml"
 $KUBECTL apply -f "${hostpath_raw}/deploy/${HOSTPATH_DEPLOY_DIR}/hostpath/csi-hostpath-plugin.yaml"
 if [ "${ENABLE_VOLUME_GROUP_SNAPSHOT}" = "true" ]; then
-  # Look the container up by name: its index moves between releases.
-  snapshotter_index=$($KUBECTL get statefulset csi-hostpathplugin \
-    -o jsonpath='{range .spec.template.spec.containers[*]}{.name}{"\n"}{end}' | grep -n '^csi-snapshotter$' | cut -d: -f1)
+  # Look the container up by name: its index moves between releases. Tolerate a
+  # miss here rather than letting the pipeline's exit status end the script: a
+  # grep that matches nothing exits 1, pipefail propagates it, and the run would
+  # stop with no output at all.
+  container_names=$($KUBECTL get statefulset csi-hostpathplugin \
+    -o jsonpath='{range .spec.template.spec.containers[*]}{.name}{"\n"}{end}')
+  snapshotter_index=$(printf '%s\n' "${container_names}" | grep -n '^csi-snapshotter$' | cut -d: -f1 || true)
+  if [ -z "${snapshotter_index}" ]; then
+    echo "ERROR: no csi-snapshotter container in statefulset/csi-hostpathplugin, so the" >&2
+    echo "       CSIVolumeGroupSnapshot feature gate cannot be set. Its containers are:" >&2
+    printf '         %s\n' ${container_names} >&2
+    echo "       Check whether HOSTPATH_VERSION=${HOSTPATH_VERSION} renamed it, or set" >&2
+    echo "       ENABLE_VOLUME_GROUP_SNAPSHOT=false to install without group snapshots." >&2
+    exit 1
+  fi
   $KUBECTL patch statefulset csi-hostpathplugin --type=json -p \
     "[{\"op\":\"add\",\"path\":\"/spec/template/spec/containers/$((snapshotter_index - 1))/args/-\",\"value\":\"--feature-gates=CSIVolumeGroupSnapshot=true\"}]"
 fi
