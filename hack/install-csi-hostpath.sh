@@ -101,8 +101,10 @@ if [ "${ENABLE_VOLUME_GROUP_SNAPSHOT}" = "true" ]; then
     echo "ERROR: no csi-snapshotter container in statefulset/csi-hostpathplugin, so the" >&2
     echo "       CSIVolumeGroupSnapshot feature gate cannot be set. Its containers are:" >&2
     printf '         %s\n' ${container_names} >&2
-    echo "       Check whether HOSTPATH_VERSION=${HOSTPATH_VERSION} renamed it, or set" >&2
-    echo "       ENABLE_VOLUME_GROUP_SNAPSHOT=false to install without group snapshots." >&2
+    echo "       Check the container names in deploy/${HOSTPATH_DEPLOY_DIR}/hostpath/csi-hostpath-plugin.yaml" >&2
+    echo "       at csi-driver-host-path ${HOSTPATH_VERSION}, in case the sidecar was renamed" >&2
+    echo "       there, or set ENABLE_VOLUME_GROUP_SNAPSHOT=false to install without group" >&2
+    echo "       snapshots." >&2
     exit 1
   fi
   $KUBECTL patch statefulset csi-hostpathplugin --type=json -p \
