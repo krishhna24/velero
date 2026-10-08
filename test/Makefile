@@ -181,6 +181,10 @@ COMMON_ARGS := --velerocli=$(VELERO_CLI) \
 	--has-vsphere-plugin=$(HAS_VSPHERE_PLUGIN) \
 	--item-block-worker-count=$(ITEM_BLOCK_WORKER_COUNT)
 
+.PHONY: run-e2e-kind
+run-e2e-kind:  ## Run the e2e tests against a kind cluster and MinIO that this target creates and removes
+	@$(REPO_ROOT)/hack/run-e2e-kind.sh
+
 # Make sure ginkgo is in $GOBIN
 .PHONY:ginkgo
 ginkgo: ${GOBIN}/ginkgo
