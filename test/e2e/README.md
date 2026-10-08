@@ -195,6 +195,18 @@ GINKGO_LABELS="BackupVolumeInfo && (CSISnapshot || CSIDataMover)" \
 make -C test/ run-e2e
 ```
 
+`$(hostname -i)` is what CI uses, but it resolves to an address the cluster
+cannot reach under WSL2, which leaves the BackupStorageLocation unreachable and
+every backup failing to upload. Use the kind network's gateway instead:
+
+``` bash
+docker network inspect kind -f '{{range .IPAM.Config}}{{.Gateway}} {{end}}'
+```
+
+Every CSI label has to be named in the filter. A Ginkgo label filter matches a
+bare token by exact equality and not as a substring, so `CSISnapshot` does not
+select a case labelled `CSIVolumeGroupSnapshot`.
+
 The PVCs those cases create have to land on a CSI-backed StorageClass. The suite
 builds `e2e-storage-class` from the provider's file, and the kind one uses the
 local-path provisioner, so until that definition is configurable the file has to
