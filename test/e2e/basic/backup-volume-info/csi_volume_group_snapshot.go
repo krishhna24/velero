@@ -134,6 +134,11 @@ func (c *CSIVolumeGroupSnapshotVolumeInfo) Verify() error {
 	for _, info := range volumeInfo {
 		fmt.Printf("The VolumeInfo metadata content: %+v\n", *info)
 		Expect(info.CSISnapshotInfo).NotTo(BeNil())
+		// CSISnapshotInfo is a pointer, so the line above prints its address. Print
+		// the handle too, since it is what this case asserts on and a CI failure is
+		// not diagnosable without it.
+		fmt.Printf("PVC %s: VolumeGroupSnapshotHandle %q\n",
+			info.PVCName, info.CSISnapshotInfo.VolumeGroupSnapshotHandle)
 		Expect(info.CSISnapshotInfo.VolumeGroupSnapshotHandle).NotTo(BeEmpty(),
 			fmt.Sprintf("PVC %s was not snapshotted by a VolumeGroupSnapshot", info.PVCName))
 
