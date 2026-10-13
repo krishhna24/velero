@@ -8,6 +8,8 @@ on:
 permissions:
   issues: write
   pull-requests: write
+  # /retest re-runs workflow runs, which needs actions: write.
+  actions: write
 
 jobs:
   execute:
@@ -29,6 +31,7 @@ jobs:
             /retitle
             /remove
             /reopen
+            /retest
             /uncc
             /unassign
           github-token: "${{ secrets.GITHUB_TOKEN }}"
